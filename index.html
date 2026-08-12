@@ -229,20 +229,19 @@ const DEP_FILL={
 };
 
 /* ---- Limites administratives ---- */
-// Départements : aplat léger teinté + contour, nom au survol
+// Renderer SVG dédié : garantit le survol des polygones (les marqueurs restent en canvas)
+const adminRenderer = L.svg({padding:0.6});
+// Départements : contour marqué (non interactif, ne bloque pas le survol des communes)
 const depLayer = L.geoJSON(DEP_PAYS, {
+  renderer: adminRenderer,
   style:f=>{const c=DEP_FILL[f.properties.znom]||'#64748b';
-    return {color:c, weight:1.4, opacity:.7, fillColor:c, fillOpacity:.06};},
-  onEachFeature:(f,lyr)=>{
-    lyr.bindTooltip(`<span style="font-weight:700">${f.properties.znom}</span>`,
-      {sticky:true, direction:'top', className:'commune-tip', opacity:1});
-    lyr.on('mouseover',()=>lyr.setStyle({weight:2, fillOpacity:.14}));
-    lyr.on('mouseout',()=>depLayer.resetStyle(lyr));
-  }
+    return {color:c, weight:1.6, opacity:.75, fill:false};},
+  interactive:false
 }).addTo(map);
 
 // Communes de l'Ouest : décantation Ouest I / Ouest II (focus détaillé)
 const communesLayer = L.geoJSON(COM_OUEST, {
+  renderer: adminRenderer,
   style:f=>{const z=f.properties.zone, c=ZONE_FILL[z]||'#64748b';
     return {color:c, weight:1, opacity:.7, fillColor:c, fillOpacity:.12};},
   onEachFeature:(f,lyr)=>{
@@ -256,15 +255,16 @@ const communesLayer = L.geoJSON(COM_OUEST, {
   }
 }).addTo(map);
 
-// Communes du pays entier : limites + nom au survol (sans remplissage)
+// Communes du pays entier : limites + nom au survol (surface survolable via remplissage quasi-invisible)
 const OUEST_NOMS=new Set(COM_OUEST.features.map(f=>f.properties.com_nom));
 const communesPays = L.geoJSON(COM_PAYS, {
+  renderer: adminRenderer,
   filter:f=>!OUEST_NOMS.has(f.properties.nom),   // éviter le doublon avec les communes Ouest colorées
-  style:{color:'#64748b', weight:1, opacity:.55, fill:true, fillColor:'#94a3b8', fillOpacity:0},
+  style:{color:'#64748b', weight:1, opacity:.55, fill:true, fillColor:'#94a3b8', fillOpacity:.01},
   onEachFeature:(f,lyr)=>{
     lyr.bindTooltip(`<span style="font-weight:700">${f.properties.nom}</span>`,
       {sticky:true, direction:'top', className:'commune-tip', opacity:1});
-    lyr.on('mouseover',()=>lyr.setStyle({weight:2, fillOpacity:.10, opacity:1}));
+    lyr.on('mouseover',()=>lyr.setStyle({weight:2, fillColor:'#2563eb', fillOpacity:.10, opacity:1}));
     lyr.on('mouseout',()=>communesPays.resetStyle(lyr));
   }
 }).addTo(map);
@@ -272,16 +272,17 @@ const communesPays = L.geoJSON(COM_PAYS, {
 // Sections communales du pays : nom au survol, chargées à partir d'un zoom rapproché
 const SEC_MIN_ZOOM=11;
 const sectionsPays = L.geoJSON(SEC_PAYS, {
-  style:{color:'#94a3b8', weight:.7, opacity:.5, fill:true, fillColor:'#cbd5e1', fillOpacity:0, dashArray:'2,2'},
+  renderer: adminRenderer,
+  style:{color:'#94a3b8', weight:.7, opacity:.5, fill:true, fillColor:'#cbd5e1', fillOpacity:.01, dashArray:'2,2'},
   onEachFeature:(f,lyr)=>{
     lyr.bindTooltip(`<span style="font-weight:600">${f.properties.nom}</span><span style="color:#64748b"> · section</span>`,
       {sticky:true, direction:'top', className:'commune-tip section-tip', opacity:1});
-    lyr.on('mouseover',()=>lyr.setStyle({weight:1.4, fillOpacity:.10, opacity:.9}));
+    lyr.on('mouseover',()=>lyr.setStyle({weight:1.4, fillColor:'#0b3a7a', fillOpacity:.10, opacity:.9}));
     lyr.on('mouseout',()=>sectionsPays.resetStyle(lyr));
   }
 });
 function toggleSections(){
-  if(map.getZoom()>=SEC_MIN_ZOOM){ if(!map.hasLayer(sectionsPays)){ sectionsPays.addTo(map); sectionsPays.bringToBack(); } }
+  if(map.getZoom()>=SEC_MIN_ZOOM){ if(!map.hasLayer(sectionsPays)){ sectionsPays.addTo(map); sectionsPays.bringToBack(); depLayer.bringToBack(); } }
   else if(map.hasLayer(sectionsPays)) map.removeLayer(sectionsPays);
 }
 map.on('zoomend', toggleSections);
@@ -353,7 +354,10 @@ metaTotal.textContent=centres.length;
 updateCommunes(); render(true);
 toggleSections();
 // ordre d'affichage : contour départements au-dessus des polygones de communes
-depLayer.bringToFront();
+// Ordre d'affichage : contours départementaux en dessous, communes interactives au-dessus
+communesPays.bringToFront();
+communesLayer.bringToFront();
+layer.eachLayer(l=>l.bringToFront&&l.bringToFront());
 setTimeout(()=>map.invalidateSize(true),150);
 setTimeout(()=>map.invalidateSize(true),600);
 window.addEventListener('load',()=>map.invalidateSize(true));
