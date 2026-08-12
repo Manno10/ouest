@@ -104,6 +104,8 @@ input::placeholder{color:var(--faint)}
 .commune-tip{background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-family:var(--sans);font-size:12px;color:var(--ink);box-shadow:0 4px 14px rgba(15,27,45,.14)}
 .commune-tip::before{display:none}
 .commune-tip.section-tip{font-size:11.5px;padding:4px 8px}
+.centre-tip{background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-family:var(--sans);font-size:12.5px;color:var(--ink);box-shadow:0 4px 16px rgba(15,27,45,.18);max-width:260px}
+.centre-tip::before{display:none}
 
 @media(max-width:820px){
   .app{grid-template-rows:auto auto 1fr}
@@ -328,8 +330,12 @@ function render(fit=true){
   const bounds=[]; const byZone={};
   filtered.forEach(c=>{
     const color=markerColor(c.zone);
-    const m=L.circleMarker([c.lat,c.lon],{radius:5.5,fillColor:color,color:'#fff',weight:1.3,opacity:1,fillOpacity:.9});
+    const m=L.circleMarker([c.lat,c.lon],{renderer:adminRenderer, radius:5.5,fillColor:color,color:'#fff',weight:1.3,opacity:1,fillOpacity:.9,bubblingMouseEvents:false});
+    m.bindTooltip(`<span style="font-weight:700">${esc(c.batiment||c.code)}</span><span style="color:${color};font-weight:600"> · ${esc(c.zone)}</span>`,
+      {direction:'top', className:'centre-tip', opacity:1, offset:[0,-4]});
     m.bindPopup(`<div class="popup-title">${esc(c.batiment||c.code)}</div><div class="popup-line"><b>Code :</b> <span class="popup-code">${esc(c.code)}</span></div><div class="popup-line"><b>Commune :</b> ${esc(c.commune)}</div><div class="popup-line"><b>Section :</b> ${esc(c.section)}</div><span class="badge" style="background:${color}">${esc(c.zone)}</span>`);
+    m.on('mouseover',()=>m.setStyle({radius:8, weight:2}));
+    m.on('mouseout',()=>m.setStyle({radius:5.5, weight:1.3}));
     m.addTo(layer); bounds.push([c.lat,c.lon]);
     byZone[c.zone]=(byZone[c.zone]||0)+1;
   });
@@ -351,7 +357,15 @@ document.querySelectorAll('input[name="basemap"]').forEach(r=>r.addEventListener
   baseLayers[e.target.value].addTo(map);
 }));
 metaTotal.textContent=centres.length;
-updateCommunes(); render(true);
+// Ouverture directe sur une zone/commune via l'URL : ?zone=Ouest%20I  ou  ?zone=Ouest%20II&commune=Delmas
+(function applyURL(){
+  const p=new URLSearchParams(location.search);
+  const z=p.get('zone'), com=p.get('commune');
+  if(z && [...zoneFilter.options].some(o=>o.value===z)){ zoneFilter.value=z; }
+  updateCommunes();
+  if(com && [...communeFilter.options].some(o=>o.value===com)){ communeFilter.value=com; }
+})();
+render(true);
 toggleSections();
 // ordre d'affichage : contour départements au-dessus des polygones de communes
 // Ordre d'affichage : contours départementaux en dessous, communes interactives au-dessus
