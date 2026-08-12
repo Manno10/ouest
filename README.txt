@@ -1,0 +1,1 @@
+Téléversez index.html et le dossier data dans le même dépôt GitHub Pages. Ne changez pas les noms des fichiers.
